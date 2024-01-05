@@ -75,11 +75,17 @@ async function main() {
 
   /* Prepare injections */
 
-  const cleanPage = await fs.readFile("./clean-page.js", "utf8");
-  const injection = await fs.readFile("./deterministic-injection.js", "utf8");
-  const model = await fs.readFile(pathToIn3dModel);
-  
-	/* Prepare page */
+  let cleanPage, injection, model;
+  try {
+    cleanPage = await fs.readFile("./clean-page.js", "utf8");
+    injection = await fs.readFile("./deterministic-injection.js", "utf8");
+    model = await fs.readFile(pathToIn3dModel);
+  } catch (e) {
+    console.red(e);
+    close();
+  }
+
+  /* Prepare page */
 
   const errorMessagesCache = [];
   const pages = await browser.pages();
@@ -87,7 +93,7 @@ async function main() {
   const page = pages[0];
   await preparePage(page, injection, model, errorMessagesCache);
 
-	/* Make attempt */
+  /* Make attempt */
   await makeAttempt(page, cleanPage, pathToOutPreview);
 
   /* Finish */
@@ -240,6 +246,11 @@ async function makeAttempt(page, cleanPage, screenshotPath) {
     const screenshot = await page.screenshot({ omitBackground: true });
 
     if (page.error !== undefined) throw new Error(page.error);
+
+    // check if image is only transparent
+    const image = await sharp(screenshot).ensureAlpha().raw().toBuffer();
+    const transparent = image.every((value, index) => index % 4 === 3 || value === 0);
+    if (transparent) throw new Error("Image is transparent");
 
     /* Make screenshots */
     // downscale png screenshot
