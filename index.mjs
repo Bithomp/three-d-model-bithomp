@@ -77,21 +77,17 @@ async function main() {
 
   const cleanPage = await fs.readFile("./clean-page.js", "utf8");
   const injection = await fs.readFile("./deterministic-injection.js", "utf8");
-  // const build = (await fs.readFile("public/three.module.js", "utf8")).replace(
-  //   /Math\.random\(\) \* 0xffffffff/g,
-  //   "Math._random() * 0xffffffff"
-  // );
-  // const webglRenderer = await fs.readFile("public/index.html", "utf8");
-
   const model = await fs.readFile(pathToIn3dModel);
-  /* Prepare pages */
+  
+	/* Prepare page */
 
   const errorMessagesCache = [];
-
   const pages = await browser.pages();
   pages.push(await browser.newPage());
   const page = pages[0];
   await preparePage(page, injection, model, errorMessagesCache);
+
+	/* Make attempt */
   await makeAttempt(page, cleanPage, pathToOutPreview);
 
   /* Finish */
