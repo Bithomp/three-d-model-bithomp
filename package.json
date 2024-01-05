@@ -1,0 +1,25 @@
+{
+  "name": "three-d-model-bithomp",
+  "version": "1.0.0",
+  "description": "Bithomp 3D model preview generator",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bithomp/three-d-model-bithomp.git"
+  },
+  "scripts": {
+    "start": "node index.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Bithomp AB",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer": "^21.7.0",
+    "serve-handler": "^6.1.5",
+    "sharp": "^0.33.1"
+  }
+}

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>three.js webgl - GLTFloader</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+    <link href="https://fonts.googleapis.com/css?family=Raleway:300,400" rel="stylesheet" />
+    <link type="text/css" rel="stylesheet" href="main.css" />
+  </head>
+
+  <body>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./three.module.js",
+          "three/addons/": "./jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+      import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
+      import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+      import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+      const MANAGER = new THREE.LoadingManager();
+      const DRACO_LOADER = new DRACOLoader(MANAGER).setDecoderPath(`./jsm/libs/draco/gltf/`);
+      const KTX2_LOADER = new KTX2Loader(MANAGER).setTranscoderPath(`./jsm/libs/basis/`);
+
+      let camera, scene, controls, renderer, pmremGenerator, neutralEnvironment, clock, mixer;
+
+      init();
+
+      function setContent(object, clips) {
+        mixer = new THREE.AnimationMixer(object);
+        if (clips.length > 0) {
+          mixer.clipAction(clips[0]).play();
+        }
+
+        object.updateMatrixWorld(); // donmccurdy/three-gltf-viewer#330
+
+        const box = new THREE.Box3().setFromObject(object);
+        const size = box.getSize(new THREE.Vector3()).length();
+        const center = box.getCenter(new THREE.Vector3());
+
+        object.position.x += object.position.x - center.x;
+        object.position.y += object.position.y - center.y;
+        object.position.z += object.position.z - center.z;
+
+        if (controls) controls.maxDistance = size * 10;
+        camera.near = size / 100;
+        camera.far = size * 100;
+        camera.updateProjectionMatrix();
+
+        camera.position.copy(center);
+
+        camera.position.x += size / 2.0;
+        camera.position.y += size / 5.0;
+        camera.position.z += size / 2.0;
+
+        // monk
+        // camera.position.x -= size / 3.5;
+        // camera.position.y -= size / 11.5;
+        // camera.position.z += size / 1;
+
+        camera.lookAt(center);
+
+        scene.add(object);
+
+        if (controls) controls.saveState();
+      }
+
+      function init() {
+        clock = new THREE.Clock();
+
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 1000);
+
+        scene = new THREE.Scene();
+
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setAnimationLoop(render);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.toneMapping = Number(THREE.LinearToneMapping);
+        renderer.toneMappingExposure = Math.pow(2, 0);
+
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.update();
+
+        pmremGenerator = new THREE.PMREMGenerator(renderer);
+        neutralEnvironment = pmremGenerator.fromScene(new RoomEnvironment()).texture;
+        scene.environment = neutralEnvironment;
+
+        container.appendChild(renderer.domElement);
+
+        const light1 = new THREE.AmbientLight("#FFFFFF", 0.3);
+        light1.name = "ambient_light";
+        camera.add(light1);
+
+        const light2 = new THREE.DirectionalLight("#FFFFFF", 0.8 * Math.PI);
+        light2.position.set(0.5, 0, 0.866); // ~60º
+        light2.name = "main_light";
+        camera.add(light2);
+
+        // model
+        const loader = new GLTFLoader(MANAGER)
+          .setPath("/models/")
+          .setCrossOrigin("anonymous")
+          .setDRACOLoader(DRACO_LOADER)
+          .setKTX2Loader(KTX2_LOADER.detectSupport(renderer))
+          .setMeshoptDecoder(MeshoptDecoder);
+
+          const model = "model.glb";
+        // const model = "monk.glb";
+        // const model = "Flamingo.glb";
+        // const model = "ferrari.glb";
+        loader.load(model, async function (gltf) {
+          const object = gltf.scene || gltf.scenes[0];
+          const clips = gltf.animations || [];
+
+          setContent(object, clips);
+
+          render();
+        });
+
+        window.addEventListener("resize", onWindowResize);
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        render();
+      }
+
+      function render() {
+        if (mixer) mixer.update(clock.getDelta());
+
+        if (controls) controls.update();
+
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
+</html>
