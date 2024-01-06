@@ -3,6 +3,7 @@ import puppeteer from "puppeteer";
 import express from "express";
 import path from "path";
 import sharp from "sharp";
+import * as FileType from "file-type";
 import * as fs from "fs/promises";
 
 const USAGE_MESSAGE = `
@@ -18,8 +19,8 @@ const parseTime = 6; // 6 seconds per megabyte
 const networkTimeout = 5; // 5 minutes, set to 0 to disable
 const renderTimeout = 5; // 5 seconds, set to 0 to disable
 
-const width = 400;
-const height = 400;
+const width = 700;
+const height = 700;
 const viewScale = 2;
 
 console.red = (msg) => console.log(chalk.red(msg));
@@ -56,8 +57,23 @@ async function main() {
   /* Launch browser */
 
   const flags = ["--hide-scrollbars", "--enable-gpu"];
-  // flags.push( '--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-gl=swiftshader', '--use-angle=swiftshader', '--use-vulkan=swiftshader', '--use-webgpu-adapter=swiftshader' );
-  // if ( process.platform === 'linux' ) flags.push( '--enable-features=Vulkan,UseSkiaRenderer', '--use-vulkan=native', '--disable-vulkan-surface', '--disable-features=VaapiVideoDecoder', '--ignore-gpu-blocklist', '--use-angle=vulkan' );
+  // flags.push(
+  //   "--enable-unsafe-webgpu",
+  //   "--enable-features=Vulkan",
+  //   "--use-gl=swiftshader",
+  //   "--use-angle=swiftshader",
+  //   "--use-vulkan=swiftshader",
+  //   "--use-webgpu-adapter=swiftshader"
+  // );
+  // if (process.platform === "linux")
+  //   flags.push(
+  //     "--enable-features=Vulkan,UseSkiaRenderer",
+  //     "--use-vulkan=native",
+  //     "--disable-vulkan-surface",
+  //     "--disable-features=VaapiVideoDecoder",
+  //     "--ignore-gpu-blocklist",
+  //     "--use-angle=vulkan"
+  //   );
 
   const viewport = { width: width * viewScale, height: height * viewScale };
 
@@ -89,7 +105,7 @@ async function main() {
 
   const errorMessagesCache = [];
   const pages = await browser.pages();
-  pages.push(await browser.newPage());
+  if (pages.length === 0) pages.push(await browser.newPage());
   const page = pages[0];
   await preparePage(page, injection, model, errorMessagesCache);
 
@@ -159,17 +175,22 @@ async function preparePage(page, injection, model, errorMessages) {
 
   page.on("response", async (response) => {
     try {
-      if (response.status === 200) {
+      if (response.status() === 200) {
+        console.green(`Response: ${response.url()}, ${response.headers()["content-length"]} bytes`);
         await response.buffer().then((buffer) => (page.pageSize += buffer.length));
+      } else {
+        console.red(`Response: ${response.url()} (${response.status()})`);
       }
     } catch {}
   });
 
   page.on("request", async (request) => {
     if (request.url() === `http://localhost:${port}/models/model.glb`) {
+      const fileType = await FileType.fileTypeFromBuffer(Buffer.from(model));
+      console.green(`Model loaded: ${fileType.ext}: ${fileType.mime}`);
       await request.respond({
         status: 200,
-        contentType: "model/gltf-binary",
+        contentType: fileType.mime,
         body: model,
       });
     } else {
@@ -197,7 +218,7 @@ async function makeAttempt(page, cleanPage, screenshotPath) {
 
     try {
       /* Render page */
-
+      console.green(`Rendering file ${file}`);
       await page.evaluate(cleanPage);
 
       await page.waitForNetworkIdle({
