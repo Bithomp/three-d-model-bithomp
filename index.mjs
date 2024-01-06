@@ -5,6 +5,7 @@ import path from "path";
 import sharp from "sharp";
 import * as FileType from "file-type";
 import * as fs from "fs/promises";
+import crypto from "crypto";
 
 const USAGE_MESSAGE = `
 Usage: node index.js <path/to/in/3d_model> <path/to/out/preview>
@@ -13,8 +14,9 @@ Usage: node index.js <path/to/in/3d_model> <path/to/out/preview>
   <path/to/out/preview> The filename to save the preview image to
 `;
 
+const redirectToModel = true; // redirect requests to model.glb to a file in public/models/ folder
 const idleTime = 9; // 9 seconds - for how long there should be no network requests
-const parseTime = 6; // 6 seconds per megabyte
+const parseTime = 1; // 1 seconds per megabyte
 
 const networkTimeout = 5; // 5 minutes, set to 0 to disable
 const renderTimeout = 5; // 5 seconds, set to 0 to disable
@@ -41,7 +43,7 @@ if (!pathToOutPreview) {
 }
 
 let browser;
-
+let tempModelFileName;
 /* Launch server */
 let port;
 const app = express();
@@ -56,7 +58,13 @@ async function main() {
 
   /* Launch browser */
 
-  const flags = ["--hide-scrollbars", "--enable-gpu"];
+  const flags = [
+    "--hide-scrollbars",
+    "--enable-gpu",
+    "--no-sandbox",
+    "--disable-site-isolation-trials",
+    "--disable-dev-shm-usage",
+  ];
   // flags.push(
   //   "--enable-unsafe-webgpu",
   //   "--enable-features=Vulkan",
@@ -178,6 +186,8 @@ async function preparePage(page, injection, model, errorMessages) {
       if (response.status() === 200) {
         console.green(`Response: ${response.url()}, ${response.headers()["content-length"]} bytes`);
         await response.buffer().then((buffer) => (page.pageSize += buffer.length));
+      } else if (response.status() === 302) {
+        console.green(`Response: ${response.url()} (${response.status()})`);
       } else {
         console.red(`Response: ${response.url()} (${response.status()})`);
       }
@@ -186,13 +196,39 @@ async function preparePage(page, injection, model, errorMessages) {
 
   page.on("request", async (request) => {
     if (request.url() === `http://localhost:${port}/models/model.glb`) {
-      const fileType = await FileType.fileTypeFromBuffer(Buffer.from(model));
-      console.green(`Model loaded: ${fileType.ext}: ${fileType.mime}`);
-      await request.respond({
-        status: 200,
-        contentType: fileType.mime,
-        body: model,
-      });
+      const buffer = await Buffer.from(model);
+      const fileType = await FileType.fileTypeFromBuffer(buffer);
+
+      if (redirectToModel) {
+        // save model as file with random name
+        tempModelFileName = `model.${crypto.randomUUID()}.${fileType.ext}`;
+        await fs.writeFile(`public/models/${tempModelFileName}`, buffer);
+
+        console.green(`Model redirecting: ${tempModelFileName}`);
+        // redirect request to the file
+        await request.respond({
+          status: 302,
+          headers: {
+            location: `/models/${tempModelFileName}`,
+          },
+        });
+
+        // delete file after it was sent
+        await page.waitForNetworkIdle({
+          timeout: networkTimeout * 60000,
+          idleTime: idleTime * 1000,
+        });
+
+        await fs.unlink(`public/models/${tempModelFileName}`);
+        tempModelFileName = undefined;
+      } else {
+        console.green(`Model sending: ${fileType.ext}: ${fileType.mime} ${buffer.length} bytes`);
+        await request.respond({
+          status: 200,
+          contentType: fileType.mime,
+          body: buffer,
+        });
+      }
     } else {
       await request.continue();
     }
@@ -290,6 +326,7 @@ function close(exitCode = 1) {
 
   if (browser) browser.close();
   if (server) server.close();
+  if (tempModelFileName) fs.unlink(`public/models/${tempModelFileName}`);
 
   process.exit(exitCode);
 }
