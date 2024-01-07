@@ -14,7 +14,7 @@ Usage: node index.js <path/to/in/3d_model> <path/to/out/preview>
   <path/to/out/preview> The filename to save the preview image to
 `;
 
-const redirectToModel = true; // redirect requests to model.glb to a file in public/models/ folder
+const redirectToModelSize = 80 * 1024 * 1024; // 80 megabytes in bytes - for how big models should be redirected to file instead of sending them in response
 const idleTime = 9; // 9 seconds - for how long there should be no network requests
 const parseTime = 1; // 1 seconds per megabyte
 
@@ -199,7 +199,7 @@ async function preparePage(page, injection, model, errorMessages) {
       const buffer = await Buffer.from(model);
       const fileType = await FileType.fileTypeFromBuffer(buffer);
 
-      if (redirectToModel) {
+      if (buffer.length > redirectToModelSize) {
         // save model as file with random name
         tempModelFileName = `model.${crypto.randomUUID()}.${fileType.ext}`;
         await fs.writeFile(`public/models/${tempModelFileName}`, buffer);
