@@ -1,11 +1,12 @@
 import chalk from "chalk";
 import puppeteer from "puppeteer";
 import express from "express";
-import path from "path";
 import sharp from "sharp";
 import * as FileType from "file-type";
 import * as fs from "fs/promises";
 import crypto from "crypto";
+
+import * as Relative from "./relative.mjs";
 
 const USAGE_MESSAGE = `
 Usage: node index.js <path/to/in/3d_model> <path/to/out/preview>
@@ -21,8 +22,8 @@ const parseTime = 1; // 1 seconds per megabyte
 const networkTimeout = 5; // 5 minutes, set to 0 to disable
 const renderTimeout = 5; // 5 seconds, set to 0 to disable
 
-const width = 700;
-const height = 700;
+const width = 1024;
+const height = 1024;
 const viewScale = 2;
 
 console.red = (msg) => console.log(chalk.red(msg));
@@ -47,7 +48,7 @@ let tempModelFileName;
 /* Launch server */
 let port;
 const app = express();
-app.use(express.static(path.resolve() + "/public"));
+app.use(express.static(Relative.fullPath("public")));
 const server = app.listen(0, "127.0.0.1", main);
 
 process.on("SIGINT", () => close());
@@ -101,8 +102,8 @@ async function main() {
 
   let cleanPage, injection, model;
   try {
-    cleanPage = await fs.readFile("./clean-page.js", "utf8");
-    injection = await fs.readFile("./deterministic-injection.js", "utf8");
+    cleanPage = await fs.readFile(Relative.fullPath("clean-page.js"), "utf8");
+    injection = await fs.readFile(Relative.fullPath("deterministic-injection.js"), "utf8");
     model = await fs.readFile(pathToIn3dModel);
   } catch (e) {
     console.red(e);
@@ -122,7 +123,7 @@ async function main() {
 
   /* Finish */
 
-  setTimeout(close, 300);
+  setTimeout(close, 300, 0);
 }
 
 async function preparePage(page, injection, model, errorMessages) {

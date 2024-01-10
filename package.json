@@ -1,8 +1,8 @@
 {
   "name": "three-d-model-bithomp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Bithomp 3D model preview generator",
-  "main": "index.js",
+  "main": "index.mjs",
   "repository": {
     "type": "git",
     "url": "https://github.com/Bithomp/three-d-model-bithomp.git"
